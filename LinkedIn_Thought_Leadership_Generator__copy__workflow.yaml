@@ -1,0 +1,177 @@
+version: '1.0'
+blocks:
+  98c20bad-afe8-4ff3-a1e3-fb6d600e6d75:
+    type: agent
+    name: get_links
+    inputs:
+      systemPrompt: |-
+        You are URLExtractorAgent.
+        Your ONLY task is to extract URLs from the input text and return them as JSON.
+
+        CRITICAL RULES:
+        - Adhere EXACTLY to the response format schema provided below.
+        - The output must be valid JSON and match the schema precisely.
+      userPrompt: |-
+        details :<exa1.results>
+        memory: <memory2.memories>
+      model: gpt-5
+      responseFormat: |-
+        {
+            "name": "url_extractor",
+            "description": "Extracts URLs from the input text and returns them as a list.",
+            "strict": true,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "urls": {
+                        "type": "array",
+                        "description": "A list of extracted URLs.",
+                        "items": {
+                            "type": "string",
+                            "description": "A URL"
+                        }
+                    }
+                },
+                "additionalProperties": false,
+                "required": ["urls"]
+            }
+        }
+    connections:
+      success: ced5d2b5-a4df-42ca-9ad4-68f17b86a065
+  3a29daff-d1f4-41d8-8ec3-5273c7bddec3:
+    type: agent
+    name: Linkedin_Post_Gen
+    inputs:
+      systemPrompt: "You are Blake, a senior marketing storyteller. Based on the research provided, draft a clear, engaging LinkedIn post about the latest advancements in AI.\n\nCRITICAL RULES\n\t•\tOutput only valid JSON that matches the provided Response Format. No prose, no function calls, no extra keys.\n\t•\tFields must be exactly: \"hook\", \"body\", \"hashtags\".\n\t•\tUse the research to stay factual; avoid speculation.\n\t•\tUse a vivid, plain-English analogy to make the concept intuitive.\n\t•\tKeep the hook punchy (≤ 24 words).\n\t•\tKeep the body tight (≈ 120–220 words), skimmable, and benefit-led.\n\t•\tWrite like a human on LinkedIn: clear, confident, and useful.\n\t•\tHashtags: 4–8 concise, relevant tags (no spaces inside tags).\n\t•\tDo not include links unless explicitly present in the research and essential to comprehension.\n\t•\tNo emojis unless the research tone clearly supports it.\n\nSTYLE GUIDELINES\n\t•\tLead with a strong, curiosity-driven hook.\n\t•\tUse one memorable analogy (e.g., “like upgrading from a map to GPS”).\n\t•\tPrefer short paragraphs and scannable lines.\n\t•\tFocus on what it means for practitioners (teams, execs, builders)."
+      userPrompt: |-
+        <parallel1.results>
+        Audience: LinkedIn general tech audience (PMs, founders, data leaders)
+        Objective: Explain the advancement clearly with a strong hook and analogy; show practical implications.
+        Constraints: Follow the response schema exactly. Output only the JSON—no extra text.
+      model: gpt-5
+      temperature: 0.9
+      responseFormat: |-
+        {
+          "name": "linkedin_post",
+          "description": "Structured LinkedIn post with hook, body, and hashtags",
+          "strict": true,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "hook": {
+                "type": "string",
+                "description": "A strong attention-grabbing opening sentence for the LinkedIn post."
+              },
+              "body": {
+                "type": "string",
+                "description": "The main content of the LinkedIn post. Explain the AI advancement in a clear, engaging way, using analogies when possible."
+              },
+              "hashtags": {
+                "type": "array",
+                "items": { "type": "string" },
+                "minItems": 4,
+                "maxItems": 8,
+                "description": "Relevant hashtags for the LinkedIn post (e.g., #AI, #GenAI)."
+              }
+            },
+            "required": ["hook", "body", "hashtags"],
+            "additionalProperties": false
+          }
+        }
+    connections:
+      success: 68fc6f30-7492-4184-a9b1-936a03077b3b
+  0b9aa00d-ac18-49c3-91ee-83ec6965bb4e:
+    type: exa
+    name: Exa 1
+    inputs:
+      operation: exa_search
+      query: latest advancements in <topic.result> this week but the urls should be free to access
+      type: auto
+    connections:
+      success: 7e9002f7-9fe1-48f4-b7ce-c21c1a617a97
+  79147464-1431-4824-970c-ed0d1d6f2cab:
+    type: function
+    name: topic
+    inputs:
+      code: return "AI"
+    connections:
+      success: 0b9aa00d-ac18-49c3-91ee-83ec6965bb4e
+  9f84fe95-2c8b-4543-a28d-5132662dc368:
+    type: function
+    name: slice
+    inputs:
+      code: |-
+
+        const urls = <get_links.urls>.slice(0,<limit.result>);
+
+        return urls;
+    connections:
+      success: 353e052c-783f-4092-b9ae-30a9312c3f37
+  ced5d2b5-a4df-42ca-9ad4-68f17b86a065:
+    type: function
+    name: limit
+    inputs:
+      code: |-
+        //you can set your limit here.
+        return 3
+    connections:
+      success: 9f84fe95-2c8b-4543-a28d-5132662dc368
+  beae45ab-3da2-48fa-89a2-863aa305967d:
+    type: gmail
+    name: Gmail 1
+    inputs:
+      operation: send_gmail
+      to: sidharth.t1607@gmail.com
+      subject: Daily Linkedin Posts
+      body: |-
+        Hello,
+        <linkedin_post_gen.hook>
+
+        <linkedin_post_gen.body>
+
+        <linkedin_post_gen.hashtags>
+  68fc6f30-7492-4184-a9b1-936a03077b3b:
+    type: memory
+    name: Memory 1
+    inputs:
+      operation: add
+      id: sessionid_1
+      role: user
+      content: <slice.result>
+    connections:
+      success: beae45ab-3da2-48fa-89a2-863aa305967d
+  7e9002f7-9fe1-48f4-b7ce-c21c1a617a97:
+    type: memory
+    name: Memory 2
+    inputs:
+      operation: getAll
+      role: user
+    connections:
+      success: 98c20bad-afe8-4ff3-a1e3-fb6d600e6d75
+  353e052c-783f-4092-b9ae-30a9312c3f37:
+    type: parallel
+    name: Parallel 1
+    inputs:
+      collection: <slice.result>
+      distribution: <slice.result>
+    connections:
+      parallel:
+        start: 9edbddce-067b-4abf-b36e-efa3d09a2144
+        end: 3a29daff-d1f4-41d8-8ec3-5273c7bddec3
+  9edbddce-067b-4abf-b36e-efa3d09a2144:
+    type: serper
+    name: Serper 1
+    inputs:
+      query: <parallel.currentItem>
+      type: search
+      num: '10'
+      gl: US
+      hl: en
+    parentId: 353e052c-783f-4092-b9ae-30a9312c3f37
+  3d49275b-b0bd-4fe8-b695-327a9e362a98:
+    type: starter
+    name: Start
+    inputs:
+      startWorkflow: manual
+    connections:
+      success: 79147464-1431-4824-970c-ed0d1d6f2cab
